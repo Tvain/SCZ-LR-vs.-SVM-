@@ -1,0 +1,94 @@
+#/ Loading libraries
+library(tibble)
+library(readr)
+library(caret)
+library(tidyverse)
+library(tictoc)
+
+#/ Setting working directory
+setwd("")
+
+#/ Loading data
+# 1. DEG Data
+train1.DEG= readRDS("train1.tab.rds")
+
+# 2. Quantile + Batch corrected data
+train1.bc= as.data.frame(t(readRDS("train1.batch-corrected.rds")))
+train1.bc = train1.bc %>% relocate(GSE_ID, Source, Batch)
+labels.train1= as.factor(train1.bc[,c(2)])
+
+test1.bc= as.data.frame(t(readRDS("test1.batch-corrected.rds")))
+test1.bc = test1.bc %>% relocate(GSE_ID, Source, Batch)
+labels.test1= as.factor(test1.bc[,c(2)])
+
+# Select the DEGs of interest w.r.t to the adj.P.value
+abc= train1.DEG[order(train1.DEG$adj.P.Val, decreasing = F),]
+top5DEG= abc[1:5,]
+
+# Subset training and testing data from top 25 DEG
+
+train1.top5= train1.bc[,rownames((top5DEG))]
+train1.top5.mat= as.matrix(train1.top5)
+class(train1.top5.mat)="numeric"
+
+test1.top5= test1.bc[,rownames((top5DEG))]
+test1.top5.mat= as.matrix(test1.top5)
+class(test1.top5.mat)="numeric"
+
+# Defining train1ing control as cross-validation and value of K equal to 10
+
+train1_control <- trainControl(method = "cv", number = 10, savePredictions = "all", classProbs = TRUE)
+
+#/ logistic regression 
+
+# training the model
+
+#LRmodel= nnet::multinom(Source~., data = train1.bc, family= "multinomial")
+
+sink("top5.LR.train1.time.txt")
+
+tic()
+
+LRmodel.train1 = train(train1.top5.mat, labels.train1, 
+                       method = "glmnet",
+                       trControl = train1_control,
+                       family ="binomial")
+toc()
+sink()
+
+#"iter" means iterations and that the train1ing model has run 30 times till the error reached a constant value 
+
+#print(LRmodel)
+#summary(LRmodel)
+
+setwd("")
+
+sink("top5.LR.train1.txt")
+
+#/ Confusion matrix: training data
+
+p.train1= predict(LRmodel.train1, train1.top5.mat)
+
+train1.cm= confusionMatrix(p.train1, labels.train1)
+
+train1.cm 
+
+#/ Confusion matrix: test data
+
+p.test1= predict(LRmodel.train1, test1.top5.mat)
+
+test1.cm= confusionMatrix(p.test1, labels.test1)
+
+test1.cm 
+
+sink()
+
+# Save model and predictions
+
+setwd("")
+saveRDS(LRmodel.train1, "LR.train1.rds")
+
+setwd("")
+write.table(p.test1, "LR.test1.Pred.txt", sep="\t")
+
+# The process was repeated for the other 9 iterations of the test and the train data using top feature gene subsets from the train data.
