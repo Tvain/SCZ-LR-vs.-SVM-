@@ -78,4 +78,5 @@ saveRDS(model.train1, "SVM.train1.rds")
 setwd("")
 write.table(p.test1, "SVM.test1.Pred.txt", sep="\t")
 
-# The process was repeated for all other subsets of the top feature genes.
+# The process was repeated for all other 9 iterations and feature gene subsets of the train and the test data.
+
