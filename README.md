@@ -13,7 +13,7 @@ The gene expression data was processed and used for model comparison using the s
 
 2. Creating metafile: A metafile was created that contained the processed datasets combined on the basis of the common feature genes.
 
-3-4. Analysis with the variable numbe of sample observations and feature genes
+3-6. Analysis with the variable numbe of sample observations and feature genes
 
   1. Training and Testing data: The script includes shuffling and random sampling of the train and the test data.
 
