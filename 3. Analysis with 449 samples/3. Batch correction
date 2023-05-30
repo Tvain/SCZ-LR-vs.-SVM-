@@ -5,10 +5,9 @@ library(plyr)
 library(dplyr)
 library(tibble)
 library(sva)
-library(ggfortify)
 
 #/ Setting working directory
-setwd("D:/Biotechnology/MSc/Dissertation/Analysis/3. Batch Correction")
+setwd("")
 
 #/ Read Quantile normalized train and test data
 
@@ -39,7 +38,7 @@ Train1.bc = ComBat(dat=Train1.qnorm.mat, batch=batch.train1, mod=modcombat.train
 # Add back rows for labels
 Train1.bc.ph= rbind(Train1.bc, labels.Train1)
 
-#/ PCA plot
+# PCA plot
 
 # Raw train data
 abc=prcomp(t(Train1.qnorm.mat), scale.=TRUE)
