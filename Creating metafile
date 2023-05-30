@@ -1,0 +1,65 @@
+#/ Loading libraries
+
+library(tibble)
+library(plyr)
+library(dplyr)
+
+#/ Setting working directory
+setwd("")
+
+#/ Reading all data tables
+
+# GSE18312
+X18312 <- readRDS("18312_WN.rds")
+dim(X18312)#17131 
+
+df18312 =rownames_to_column(X18312, "Genes")
+
+# GSE27383
+X27383 <- readRDS("27383_WN.rds")
+dim(X27383)#21532 
+
+df27383 =rownames_to_column(X27383, "Genes")
+
+# GSE38481
+X38481 <- readRDS("38481_WN.rds")
+dim(X38481)#12647 
+
+df38481 =rownames_to_column(X38481, "Genes")
+
+# GSE38484
+X38484 <- readRDS("38484_WN.rds")
+dim(X38484)#17233
+
+df38484 =rownames_to_column(X38484, "Genes")
+
+# GSE48072
+X48072 <- readRDS("48072_WN.rds")
+dim(X48072) #15155 
+
+df48072 =rownames_to_column(X48072, "Genes")
+
+# GSE54913
+X54913 <- readRDS("54913_WN.rds")
+dim(X54913)#13023 
+
+df54913 =rownames_to_column(X54913, "Genes")
+
+# Kumarasinghe et. al.
+XKum <- readRDS("Kum_WN.rds")
+dim(XKum)#10544
+
+dfKum = rownames_to_column(XKum, "Genes")
+
+#/ Merging data tables
+dfs= list(df18312, df27383, df38481, df38484, df48072, df54913, dfKum)
+df= join_all(dfs, by="Genes", type = "inner")
+
+Metafile= column_to_rownames(df, var = "Genes")
+dim(Metafile) #6774
+
+
+#/ Export Metafile
+
+saveRDS(Metafile, file="")
+write.csv(Metafile, file="")
