@@ -1,4 +1,4 @@
-#/ Calling libraries
+#/ Loading libraries
 
 library(tidyr)
 library(plyr)
