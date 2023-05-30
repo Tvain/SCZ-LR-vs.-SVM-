@@ -1,0 +1,81 @@
+#/ Calling libraries
+library(caret)
+library(plyr)
+library(dplyr)
+library(tibble)
+library(tidyverse)
+library(e1071)
+library(janitor)
+library(tictoc)
+
+#/ Setting working directory
+setwd("")
+
+#/ Loading data
+# 1. DEG Data
+train1.DEG= readRDS("train1.tab.rds")
+
+# 2. Quantile + Batch corrected data
+train1.bc= as.data.frame(t(readRDS("Train1.batch-corrected.rds")))
+train1.bc = train1.bc %>% relocate(GSE_ID, Source, Batch)
+labels.train1= as.factor(train1.bc[,c(2)])
+
+test1.bc= as.data.frame(t(readRDS("test1.batch-corrected.rds")))
+test1.bc = test1.bc %>% relocate(GSE_ID, Source, Batch)
+labels.test1= as.factor(test1.bc[,c(2)])
+
+
+# Select the DEGs of interest w.r.t to the adj.P.value
+abc= train1.DEG[order(train1.DEG$adj.P.Val, decreasing = F),]
+top5DEG= abc[1:5,]
+
+# Subset training and testing data from top 25 DEG
+
+train1.top5= train1.bc[,rownames((top5DEG))]
+train1.top5.mat= as.matrix(train1.top5)
+class(train1.top5.mat)="numeric"
+
+test1.top5= test1.bc[,rownames((top5DEG))]
+test1.top5.mat= as.matrix(test1.top5)
+class(test1.top5.mat)="numeric"
+
+#/ Building SVM model
+
+sink("top5.SVM.train1.time.txt")
+tic()
+
+model.train1= best.svm(train1.top5.mat, labels.train1, cost = c(0.1, 1, 10), kernel = "radial",
+                       tunecontrol = tune.control(cross = 10), probability= T, type= "C-classification")
+
+toc()
+sink()
+
+setwd("")
+
+sink("top5.SVM.train1.txt", append = T)
+
+#/ Testing the model on train set
+p.train1 = predict(model.train1, train1.top5.mat) 
+
+#/ Confusion Matrix for train set
+train1.cm=confusionMatrix(p.train1, labels.train1)
+train1.cm
+
+#/ Testing the model on test set
+p.test1 = predict(model.train1, test1.top5.mat)
+
+#/ Confusion matrix for test set
+test1.cm=confusionMatrix(p.test1, labels.test1)
+test1.cm
+
+sink()
+
+#Save model and predictions
+
+setwd("")
+saveRDS(model.train1, "SVM.train1.rds")
+
+setwd("")
+write.table(p.test1, "SVM.test1.Pred.txt", sep="\t")
+
+# The process was repeated for all other subsets of the top feature genes.
