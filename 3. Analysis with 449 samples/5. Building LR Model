@@ -81,16 +81,16 @@ p.test1= predict(LRmodel.train1, test1.top5.mat)
 
 test1.cm= confusionMatrix(p.test1, labels.test1)
 
-# The process waas repeated for the other 9 iterations of the train and the test data.
-
 test1.cm 
 
 sink()
 
 # Save model and predictions
 
-setwd("D:/Biotechnology/MSc/Dissertation/Analysis/449 samples/5. LR/Model/top5")
+setwd("")
 saveRDS(LRmodel.train1, "LR.train1.rds")
 
-setwd("D:/Biotechnology/MSc/Dissertation/Analysis/449 samples/5. LR/Test Predictions/top5")
+setwd("")
 write.table(p.test1, "LR.test1.Pred.txt", sep="\t")
+
+# The process was repeated for all other 9 iterations and feature gene subsets of the train and the test data.
