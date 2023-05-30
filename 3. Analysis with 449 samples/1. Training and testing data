@@ -1,0 +1,164 @@
+#/ Loading libraries
+library(tidyr)
+library(plyr)
+library(dplyr)
+library(tibble)
+
+#/ Setting working directory
+setwd("")
+
+#/ Reading data (Metafile)
+Metafile= read.csv("Metaphenofile_WN.csv")
+Metafile= column_to_rownames(Metafile, var = "X")
+#Metafile= Metafile[c(2, 1:6775),] #Moving last row to the top of the table
+
+Metafile= Metafile[-c(3,4),]
+
+dim(Metafile) #6777 449 : 6777 because of the extra rows for source, batch and GSE ID
+
+#/ Shuffling samples
+set.seed(99)
+
+Metafile.shuffled = Metafile[sample(1:ncol(Metafile))]
+
+View(Metafile.shuffled)
+
+#/ Divide data into 10 equal parts to perform cross validation
+
+Metafile.t= t(Metafile.shuffled) #transposed metafile
+
+View(Metafile.t)
+class(Metafile.t)
+
+k=10
+
+# 1st Sampling 
+
+set.seed(99)
+
+folds = sample(1:nrow(Metafile.t)%%k)
+
+fold = 0  # selecting the fold to be tested
+train1 = Metafile.t[folds != fold,]
+
+test1 = Metafile.t[folds == fold,]
+
+saveRDS(train1, "train1.rds")
+saveRDS(test1, "test1.rds")
+
+# 2nd Sampling
+
+set.seed(99)
+
+folds = sample(1:nrow(Metafile.t)%%k)
+fold = 1  
+
+train2 = Metafile.t[folds != fold,]
+test2 = Metafile.t[folds == fold,]
+
+saveRDS(train2, "train2.rds")
+saveRDS(test2, "test2.rds")
+
+# 3rd Sampling
+
+set.seed(99)
+
+folds = sample(1:nrow(Metafile.t)%%k) 
+fold = 2 
+
+train3 = Metafile.t[folds != fold,]
+test3 = Metafile.t[folds == fold,]
+
+saveRDS(train3, "train3.rds")
+saveRDS(test3, "test3.rds")
+
+# 4th Sampling
+
+set.seed(99)
+
+folds = sample(1:nrow(Metafile.t)%%k) 
+fold = 3  
+
+train4 = Metafile.t[folds != fold,]
+test4 = Metafile.t[folds == fold,]
+
+saveRDS(train4, "train4.rds")
+saveRDS(test4, "test4.rds")
+
+# 5th Sampling
+
+set.seed(99)
+
+folds = sample(1:nrow(Metafile.t)%%k) 
+fold = 4  
+
+train5 = Metafile.t[folds != fold,]
+test5 = Metafile.t[folds == fold,]
+
+saveRDS(train5, "train5.rds")
+saveRDS(test5, "test5.rds")
+
+# 6th Sampling
+
+set.seed(99)
+
+folds = sample(1:nrow(Metafile.t)%%k) 
+fold = 5  
+
+train6 = Metafile.t[folds != fold,]
+test6 = Metafile.t[folds == fold,]
+
+saveRDS(train6, "train6.rds")
+saveRDS(test6, "test6.rds")
+
+# 7th Sampling
+
+set.seed(99)
+
+folds = sample(1:nrow(Metafile.t)%%k) 
+fold = 6 
+
+train7 = Metafile.t[folds != fold,]
+test7 = Metafile.t[folds == fold,]
+
+saveRDS(train7, "train7.rds")
+saveRDS(test7, "test7.rds")
+
+# 8th Sampling
+
+set.seed(99)
+
+folds = sample(1:nrow(Metafile.t)%%k) 
+fold = 7 
+
+train8 = Metafile.t[folds != fold,]
+test8 = Metafile.t[folds == fold,]
+
+saveRDS(train8, "train8.rds")
+saveRDS(test8, "test8.rds")
+
+# 9th Sampling
+
+set.seed(99)
+
+folds = sample(1:nrow(Metafile.t)%%k) 
+fold = 8  
+
+train9 = Metafile.t[folds != fold,]
+test9 = Metafile.t[folds == fold,]
+
+saveRDS(train9, "train9.rds")
+saveRDS(test9, "test9.rds")
+
+# 10th Sampling
+
+set.seed(99)
+
+folds = sample(1:nrow(Metafile.t)%%k) 
+fold = 9 
+
+train10 = Metafile.t[folds != fold,]
+test10 = Metafile.t[folds == fold,]
+
+saveRDS(train10, "train10.rds")
+saveRDS(test10, "test10.rds")
