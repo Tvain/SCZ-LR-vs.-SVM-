@@ -27,4 +27,4 @@ The gene expression data was processed and used for model comparison using the s
 
 
 Contact:
-Vipul : vipulwagh31@gmail.com
+Tanvi: tanvi.kottat@ssbs.edu.in
