@@ -1,0 +1,750 @@
+############################################## GSE18312 #####################################################
+
+#/ LOADING LIBRARIES
+
+library(biomaRt)
+library(limma)
+library(tibble)
+library(dplyr)
+library(plyr)
+library(HGNChelper)
+library(oligo)
+library(stringr)
+
+#/ SET WORKING DIRECTORY
+
+setwd("D:/Biotechnology/MSc/Dissertation/Datasets/GSE18312")
+
+#/ LIST .CEL FILES
+
+cels.gse18312<-list.celfiles("GSE18312_RAW/", pattern="CEL")
+
+#/ READING RAW DATA
+
+RAW.GSE18312<-read.celfiles(list.files(pattern = '*CEL', full.names = TRUE))
+
+#/ FETCHING PHENOTYPE DATA
+
+ph.data<-read.table("GSE18312_phData.txt", header = TRUE, sep = "\t", nrows = 21)
+
+#/ PERFORM RMA
+GSE18312.rma= rma(RAW.GSE18312, background=TRUE, normalize= FALSE, target="core")
+View(GSE18312.rma@assayData$exprs)
+
+#/ RAW EXPRESSION MATRIX AS DATA FRAME
+RAW.GSE18312.DF = as.data.frame(exprs(GSE18312.rma))
+View(RAW.GSE18312.DF)
+
+# Editing column names of the raw expression matrix df
+
+colnames(RAW.GSE18312.DF)=ph.data$Sample_ID
+colnames(RAW.GSE18312.DF)
+
+#/ GENE ANNOTATION
+
+featureData(GSE18312.rma) = getNetAffx(GSE18312.rma, "transcript")
+
+Ann.GSE18312.DF= as.data.frame(GSE18312.rma@featureData@data)
+dim(Ann.GSE18312.DF)
+View(Ann.GSE18312.DF)
+
+
+# Check for unassigned ProbeIDs
+
+table(is.na(Ann.GSE18312.DF$geneassignment))
+
+# Keep only ProbeIDs and annotated gene info
+
+Ann.GSE18312.DF=Ann.GSE18312.DF[,c(1,2,8)]
+
+# Remove rows with unassigned ProbeIDs
+
+Ann.GSE18312.omit=na.omit(Ann.GSE18312.DF)
+dim(Ann.GSE18312.omit)#17638
+table(is.na(Ann.GSE18312.omit$geneassignment))
+
+# Extract gene symbols in a separate column
+
+Ann.GSE18312.omit[,c(4:6)]=str_split_fixed(Ann.GSE18312.omit$geneassignment, "//",3)
+View(Ann.GSE18312.omit)
+
+Ann.GSE18312.omit=Ann.GSE18312.omit[,c(1,2,5)] # keep relevant columns
+
+# Strip split may have white space.
+
+Ann.GSE18312.omit$V5=trimws(Ann.GSE18312.omit$V5)
+
+#/ CHECK FOR HGNC SYMBOLS
+
+gsymbols=Ann.GSE18312.omit$V5
+check.symbols=checkGeneSymbols(gsymbols, unmapped.as.na = TRUE, map= NULL, species="human")
+
+# Remove unassigned genes
+
+table(is.na(check.symbols$Suggested.Symbol))
+check.symbols.df=na.omit(check.symbols)
+table(is.na(check.symbols.df$Suggested.Symbol))
+
+# Add approved gene symbols to the modified annotated matrix
+
+Ann.GSE18312.omit.HGNC=merge(Ann.GSE18312.omit, check.symbols.df, by.x= "V5", by.y= "x")
+
+# Add HGNC approved gene symbols to raw matrix
+
+RAW.GSE18312.HGNC=rownames_to_column(RAW.GSE18312.DF, "transcriptclusterid")
+
+RAW.GSE18312.final=merge(RAW.GSE18312.HGNC,Ann.GSE18312.omit.HGNC, by= "transcriptclusterid")
+View(RAW.GSE18312.final)
+
+#/ LIMMA AVEREPS
+
+GSE18312.avereps = as.data.frame(limma::avereps(RAW.GSE18312.final, RAW.GSE18312.final$Suggested.Symbol))
+
+GSE18312.avereps.df = column_to_rownames(GSE18312.avereps, "Suggested.Symbol")
+colnames(GSE18312.avereps.df)
+
+GSE18312.avereps.final= GSE18312.avereps.df[,-c(1,23:28)]
+dim(GSE18312.avereps.final)#17131
+
+View(GSE18312.avereps.final)
+
+# Converting final avereps file to numeric for obtaining anti-log
+
+class(GSE18312.avereps.final)
+
+abc = mutate_all(GSE18312.avereps.final, function(x) as.numeric(as.character(x)))
+
+is.numeric(abc)
+
+GSE18312.avereps.AL = 2^(abc)
+View(GSE18312.avereps.AL)
+
+saveRDS(GSE18312.avereps.AL, file = "")
+
+############################################## GSE27383 #####################################################
+
+#/ LOADING LIBRARIES
+
+library(affy)
+
+#/ SETTING WORKING DIRECTORY
+
+setwd()
+
+#/ UNPACK .CEL FILES
+
+cels.gse27383<-list.files("GSE27383_RAW/", pattern="CEL")
+
+#/ READING RAW DATA
+
+RAW.GSE27383<-ReadAffy(verbose = TRUE, filenames = cels.gse27383)
+
+boxplot(RAW.GSE27383)
+
+#/ FETCHING PHENOTYPE OR ANNOTATION DATA
+
+phDATA<-read.table("GSE27383_phData.txt", header = TRUE, sep = "\t")
+
+#/ PERFORMING RMA WITHOUT NORMALIZATION (BETWEEN ARRAY NORMALIZATION)
+
+GSE27383.rma<- rma(RAW.GSE27383, background = TRUE, normalize = FALSE)
+
+boxplot(GSE27383.rma@assayData$exprs)
+
+#/ RAW EXPRESSION MATRIX AS DF
+
+GSE27383.rma.df<- as.data.frame(exprs(GSE27383.rma))
+
+# Column names edited
+
+colnames(GSE27383.rma.df)=phDATA$Sample_ID
+colnames(GSE27383.rma.df)
+
+#/ GENE ANOTATION
+
+Martfunction=useMart("ENSEMBL_MART_ENSEMBL")
+Martfunction=useDataset("hsapiens_gene_ensembl",Martfunction)
+GSE27383.pIDs=rownames(GSE27383.rma.df)
+GS.pIDs.27383= getBM(attributes = c("affy_hg_u133_plus_2", "hgnc_symbol"),
+                     filters = "affy_hg_u133_plus_2",
+                     values = GSE27383.pIDs,
+                     mart = Martfunction)
+
+dim(GS.pIDs.27383)#48315
+
+#/ REMOVE UNASSIGNED PROBE-IDS
+
+GS.pIDs.27383.df=GS.pIDs.27383[!(GS.pIDs.27383$hgnc_symbol==""),]
+
+#/ VERIFY GENE SYMBOLS WITH HGNC
+
+geneSymbols.verified<-checkGeneSymbols(GS.pIDs.27383.df$hgnc_symbol, species = "human")
+
+# Exchange the columns with corrected values (from verified to unverified gene symbol df)
+
+GS.pIDs.27383.df$hgnc_symbol<-geneSymbols.verified$Suggested.Symbol
+
+# Creating blank spaces in place of NA and then removing the blank spaces 
+
+GS.pIDs.27383.df[is.na(GS.pIDs.27383.df)] <- ""
+GS.pIDs.27383.df=GS.pIDs.27383.df[!(GS.pIDs.27383.df$hgnc_symbol==""),]
+
+#/ BRING ROW-NAMES TO COLUMN IN RAW EXPRESSSION DATA
+
+GSE27383.rma.df=rownames_to_column(GSE27383.rma.df, "PIDs")
+colnames(GS.pIDs.27383.df)[1]= "PIDs"
+
+#/ ADD GENE SYMBOLS TO NORMALIZED DATA
+
+GSE27383.geneSymbols= merge(GS.pIDs.27383.df,GSE27383.rma.df, by= "PIDs")
+
+dim(GSE27383.geneSymbols)#43042
+
+#/ AVERAGE OUT DUPLICATE GENE SYMBOLS ROW-WISE USING LIMMA AVEREPS
+
+GSE27383.avreps=as.data.frame((limma::avereps(GSE27383.geneSymbols, GSE27383.geneSymbols$hgnc_symbol)))
+
+dim(GSE27383.avreps)#21532
+
+#/ HAVE UNIQUE GENE SYMBOLS AS ROW IDS
+
+GSE27383.avreps.df=column_to_rownames(GSE27383.avreps, "hgnc_symbol")
+GSE27383.avreps.final=GSE27383.avreps.df[-c(1)] # remove unwanted column
+dim(GSE27383.avreps.final)#21532
+view(GSE27383.avreps.final)
+
+abc = mutate_all(GSE27383.avreps.final, function(x) as.numeric(as.character(x)))
+
+GSE27383.avreps.AL= 2^abc
+View(GSE27383.avreps.AL)
+
+saveRDS(GSE27383.avreps.AL, file = "")
+
+############################################## GSE38481 #####################################################
+
+#/ LOADING LIBRARIES
+
+library(lumi)
+
+#/ SETTING WORKING DIRECTORY
+
+setwd()
+
+#/ LISTING FILES IN THE DIRECTORY
+
+txt.gse38481<-list.files("GSE38481/", pattern="txt")
+
+#/ READING RAW DATA
+RAW.DATA.GSE38481 <- lumiR("GSE38481_non_normalized.txt", convertNuID = TRUE, 
+                           lib.mapping = 'lumiHumanIDMapping', QC = TRUE,  dec = '.', parseColumnName = TRUE,
+                           columnNameGrepPattern = list(exprs='AVG_SIGNAL', se.exprs='NA', detection='DETECTION'))
+dim(RAW.DATA.GSE38481) #24526
+
+#/ FILTERING EXPRESSED PROBES by taking the average of 3 probes<0.05
+
+EXPRESSED.PROBES<- rowSums(RAW.DATA.GSE38481@assayData$detection<0.05)>=3
+
+# Subtract from main object or retain only expressed probes in expression matrix
+
+GSE38481.RAW=RAW.DATA.GSE38481[EXPRESSED.PROBES,]
+dim(GSE38481.RAW) #16023
+
+## FETCHING PHENOTYPE DATA
+
+phData<- read.delim("GSE38481_series_matrix_new.txt", header = TRUE, sep = "\t")
+
+colnames(GSE38481.RAW)= phData$GSM_ID
+colnames(GSE38481.RAW)
+
+#/ PERFORMING BACKGROUND CORRECTION
+
+BCOR.GSE38481<- lumiB(GSE38481.RAW, method = 'bgAdjust')
+
+dim(BCOR.GSE38481)#16023
+
+# Extract background corrected matrix
+
+BCOR.GSE38481.matrix= exprs(BCOR.GSE38481)
+dim(BCOR.GSE38481.matrix)
+
+# Check for negative values and replace them with zero
+
+abc=apply(BCOR.GSE38481.matrix, 1, function(row) any(row<0))
+length(which(abc)) # 1700 rows with negative values
+
+BCOR.GSE38481.matrix[BCOR.GSE38481.matrix<0]=0
+
+BCOR.GSE38481.df= as.data.frame(BCOR.GSE38481.matrix)
+
+dim(BCOR.GSE38481.df) #16023
+
+## GENE ANNOTATION
+
+BCOR.GSE38481.df= rownames_to_column(BCOR.GSE38481.df)
+
+GENE.SYMBOLS<- nuID2targetID(BCOR.GSE38481.df$rowname, lib.mapping = "lumiHumanIDMapping")
+
+GENE.SYMBOLS= as.data.frame(GENE.SYMBOLS)
+
+GENE.SYMBOLS.sub = GENE.SYMBOLS$GENE.SYMBOLS
+
+## CHECKING HGNC SYMBOLS
+
+GENE.SYMBOLS[,2:4]<-checkGeneSymbols(GENE.SYMBOLS.sub, species = "human", unmapped.as.na = TRUE)
+
+View(GENE.SYMBOLS)
+
+GENE.SYMBOL.ASSIGNED=na.omit(GENE.SYMBOLS)
+
+table(is.na(GENE.SYMBOL.ASSIGNED$GENE.SYMBOLS))
+
+dim(GENE.SYMBOL.ASSIGNED) #15799
+
+# Remove rows with unassigned gene symbols
+
+GENE.SYMBOL.ASSIGNED= rownames_to_column(GENE.SYMBOL.ASSIGNED, "rownames")
+
+BCOR.GSE38481.df= rownames_to_column(BCOR.GSE38481.df, "rownames")
+
+GENES.MERGED= merge(GENE.SYMBOL.ASSIGNED, BCOR.GSE38481.df, by="rownames")
+
+dim(GENES.MERGED)
+
+#/ LIMMA AVEREPS
+
+GSE38481.avreps=as.data.frame((limma::avereps(GENES.MERGED, GENES.MERGED$Suggested.Symbol)))
+
+GSE38481.avreps= GSE38481.avreps[,-c(1:4)]
+View(GSE38481.avreps)
+dim(GSE38481.avreps)#12647
+
+GSE38481.avreps.final= column_to_rownames(GSE38481.avreps, "Suggested.Symbol")
+dim(GSE38481.avreps.final)# 12647
+
+is.numeric(GSE38481.avreps.final)
+GSE38481.avreps.final[]= lapply(GSE38481.avreps.final, function(x) as.numeric(as.character(x)))
+
+View(GSE38481.avreps.final)
+
+saveRDS(GSE38481.avreps.final, file = "")
+
+############################################## GSE38484 #####################################################
+
+#/ SETTING WORKING DIRECTORY
+
+setwd()
+
+#/ LISTING FILES IN THE DIRECTORY
+
+txt.gse38484<-list.files("GSE38484/", pattern="txt")
+
+#/ READING RAW DATA
+RAW.DATA.GSE38484 <- lumiR("GSE38484_non_normalized.txt", convertNuID = TRUE, 
+                           lib.mapping = 'lumiHumanIDMapping', QC = TRUE,  dec = '.', parseColumnName = TRUE,
+                           columnNameGrepPattern = list(exprs='AVG_SIGNAL', se.exprs='NA', detection='DETECTION'))
+dim(RAW.DATA.GSE38484)#48742
+
+#/ FILTERING EXPRESSED PROBES by taking the average of 3 probes<0.05
+
+EXPRESSED.PROBES<- rowSums(RAW.DATA.GSE38484@assayData$detection<0.05)>=3
+
+# Subtract from main object or retain only expressed probes in expression matrix
+
+GSE38484.RAW=RAW.DATA.GSE38484[EXPRESSED.PROBES,]
+dim(GSE38484.RAW) #38975
+
+#/ FETCHING PHENOTYPE DATA
+
+phData<- read.delim("GSE38484_series_matrix_modified.txt", header = TRUE, sep = "\t")
+
+colnames(GSE38484.RAW)= phData$GSM_ID
+colnames(GSE38484.RAW)
+
+#/ PERFORMING BACKGROUND CORRECTION
+
+BCOR.GSE38484<- lumiB(GSE38484.RAW, method = 'bgAdjust')
+
+dim(BCOR.GSE38484)#38975
+
+# Extracting background corrected matrix
+
+BCOR.GSE38484.matrix= exprs(BCOR.GSE38484)
+dim(BCOR.GSE38484.matrix)
+
+# Check for negative values and replace them with zero
+
+abc=apply(BCOR.GSE38484.matrix, 1, function(row) any(row<0))
+length(which(abc)) # 27742 rows with negative values
+
+BCOR.GSE38484.matrix[BCOR.GSE38484.matrix<0]=0
+
+BCOR.GSE38484.df= as.data.frame(BCOR.GSE38484.matrix)
+
+dim(BCOR.GSE38484.df) #38975
+
+#/ GENE ANNOTATION
+
+BCOR.GSE38484.df= rownames_to_column(BCOR.GSE38484.df)
+
+GENE.SYMBOLS<- nuID2targetID(BCOR.GSE38484.df$rowname, lib.mapping = "lumiHumanIDMapping")
+
+GENE.SYMBOLS= as.data.frame(GENE.SYMBOLS)
+
+GENE.SYMBOLS.sub = GENE.SYMBOLS$GENE.SYMBOLS
+
+#/ CHECKING HGNC SYMBOLS
+
+GENE.SYMBOLS[,2:4]<-checkGeneSymbols(GENE.SYMBOLS.sub, species = "human", unmapped.as.na = TRUE)
+
+View(GENE.SYMBOLS)
+
+GENE.SYMBOL.ASSIGNED=na.omit(GENE.SYMBOLS)
+
+table(is.na(GENE.SYMBOL.ASSIGNED$GENE.SYMBOLS))
+
+dim(GENE.SYMBOL.ASSIGNED) #25373
+
+# Remove rows with unassigned gene symbols
+
+GENE.SYMBOL.ASSIGNED= rownames_to_column(GENE.SYMBOL.ASSIGNED, "rownames")
+
+BCOR.GSE38484.df= rownames_to_column(BCOR.GSE38484.df, "rownames")
+
+GENES.MERGED= merge(GENE.SYMBOL.ASSIGNED, BCOR.GSE38484.df, by="rownames")
+
+dim(GENES.MERGED)#25373
+
+#/ LIMMA AVEREPS
+
+GSE38484.avreps=as.data.frame((limma::avereps(GENES.MERGED, GENES.MERGED$Suggested.Symbol)))
+
+GSE38484.avreps= GSE38484.avreps[,-c(1:4)]
+View(GSE38484.avreps)
+dim(GSE38484.avreps)#17233
+
+GSE38484.avreps.final= column_to_rownames(GSE38484.avreps, "Suggested.Symbol")
+dim(GSE38484.avreps.final)# 17233
+
+is.numeric(GSE38484.avreps.final)
+GSE38484.avreps.final[]= lapply(GSE38484.avreps.final, function(x) as.numeric(as.character(x)))
+
+View(GSE38484.avreps.final)
+
+saveRDS(GSE38484.avreps.final, file = "")
+
+############################################## GSE48072 #####################################################
+
+#/ SETTING WORKING DIRECTORY
+setwd("D:/Biotechnology/MSc/Dissertation/Datasets/GSE48072")
+
+#/ LIST FILES IN THE DIRECTORY
+TXT.GSE48072<-list.files("GSE48072/", pattern="txt")
+
+#/ READING RAW DATA
+RAW.GSE48072 <- lumiR("GSE48072_non-normalized_modified.txt", convertNuID = TRUE, 
+                           lib.mapping = 'lumiHumanIDMapping', QC = TRUE,  dec = '.', parseColumnName = TRUE,
+                           columnNameGrepPattern = list(exprs='SAMPLE', se.exprs='NA', detection='DETECTION'))
+
+#/ FILTERING EXPRESSED PROBES by taking the average of 3 probes<0.05
+
+EXP.PROBES=rowSums(RAW.GSE48072@assayData$detection<0.05)>=3
+
+# Subtract from main object or retain only expressed probes in expression matrix
+
+GSE48072.RAW=RAW.GSE48072[EXP.PROBES,]
+
+dim(GSE48072.RAW)# 30355
+
+#/ FETCHING PHENOTYPE DATA
+phData<- read.delim("GSE48072_series_matrix_pDATA.txt", header = TRUE, sep = "\t")
+
+colnames(GSE48072.RAW)=phData$Sample_ID
+colnames(GSE48072.RAW)
+
+View(GSE48072.RAW@assayData$exprs)
+
+#/ PERFORMING BACKGROUND CORRECTION
+
+BCOR.GSE48072<- lumiB(GSE48072.RAW)
+dim(BCOR.GSE48072)#30355
+
+# Extracting background corrected matrix
+
+BCOR.GSE48072.matrix= exprs(BCOR.GSE48072)
+dim(BCOR.GSE48072.matrix)
+
+# Check for negative values and replace them with zero
+
+abc=apply(BCOR.GSE48072.matrix, 1, function(row) any(row<0))
+length(which(abc)) # 15156 rows with negative values
+
+BCOR.GSE48072.matrix[BCOR.GSE48072.matrix<0]=0
+
+BCOR.GSE48072.df= as.data.frame(BCOR.GSE48072.matrix)
+
+dim(BCOR.GSE48072.df) #30355
+
+#/ GENE ANNOTATION
+
+BCOR.GSE48072.df= rownames_to_column(BCOR.GSE48072.df)
+
+GENE.SYMBOLS<- nuID2targetID(BCOR.GSE48072.df$rowname, lib.mapping = "lumiHumanIDMapping")
+
+GENE.SYMBOLS= as.data.frame(GENE.SYMBOLS)
+
+GENE.SYMBOLS.sub = GENE.SYMBOLS$GENE.SYMBOLS
+
+#/ CHECKING HGNC SYMBOLS
+
+GENE.SYMBOLS[,2:4]<-checkGeneSymbols(GENE.SYMBOLS.sub, species = "human", unmapped.as.na = TRUE)
+
+View(GENE.SYMBOLS)
+
+GENE.SYMBOL.ASSIGNED=na.omit(GENE.SYMBOLS)
+
+table(is.na(GENE.SYMBOL.ASSIGNED$GENE.SYMBOLS))
+
+dim(GENE.SYMBOL.ASSIGNED) #21521
+
+# Remove rows with unassigned gene symbols
+
+GENE.SYMBOL.ASSIGNED= rownames_to_column(GENE.SYMBOL.ASSIGNED, "rownames")
+
+BCOR.GSE48072.df= rownames_to_column(BCOR.GSE48072.df, "rownames")
+
+GENES.MERGED= merge(GENE.SYMBOL.ASSIGNED, BCOR.GSE48072.df, by="rownames")
+
+dim(GENES.MERGED)#21521
+
+#/ LIMMA AVEREPS
+
+GSE48072.avreps=as.data.frame((limma::avereps(GENES.MERGED, GENES.MERGED$Suggested.Symbol)))
+
+GSE48072.avreps= GSE48072.avreps[,-c(1:4)]
+View(GSE48072.avreps)
+dim(GSE48072.avreps)#15155
+
+GSE48072.avreps.final= column_to_rownames(GSE48072.avreps, "Suggested.Symbol")
+dim(GSE48072.avreps.final)# 15155
+
+is.numeric(GSE48072.avreps.final)
+GSE48072.avreps.final[]= lapply(GSE48072.avreps.final, function(x) as.numeric(as.character(x)))
+
+View(GSE480721.avreps.final)
+
+saveRDS(GSE48072.avreps.final, file = "")
+
+############################################## GSE54913 #####################################################
+
+#/ SETTING THE WORKING DIRECTORY
+setwd("")
+
+#/ LISTING FILES
+TXT.GSE54913<-list.files("GSE54913/", pattern="txt", full.names = TRUE)
+
+#/ READING RAW DATA
+GSE54913 <- read.delim("GSE54913_mRNA_raw_for_GEO.txt", header = TRUE, sep ="\t")
+
+#/ FETCHING PHENOTYPE DATA
+phData<- read.delim("GSE54913_series_matrix_phData.txt", header = TRUE, sep = "\t")
+
+#/ MODIFYING THE RAW DATA TABLE
+GSE54913.mod1= GSE54913[,c(1,3)]
+GSE54913.mod2= GSE54913[,-c(2:14)]
+
+#/ CHECKING HGNC SYMBOLS
+GSE54913.mod1[,3:5]<-checkGeneSymbols(GSE54913.mod1$GeneSymbol, species = "human", unmapped.as.na = TRUE)
+
+table(is.na(GSE54913.mod1$Suggested.Symbol))
+
+# Remove rows with unassigned gene symbols
+
+GSE54913.mod1.df=na.omit(GSE54913.mod1)
+table(is.na(GSE54913.mod1.df$Suggested.Symbol))
+
+# Keep only PROBE NAMES and suggested symbols
+
+GSE54913.mod1.df1=GSE54913.mod1.df[,c(1,5)]
+
+# Add HGNC symbols to normalized expression matrix
+
+GSE54913.HGNC= merge(GSE54913.mod2, GSE54913.mod1.df1, by="ProbeName")
+
+# Shifting last column to second
+
+GSE54913.HGNC <- GSE54913.HGNC %>% relocate(Suggested.Symbol, .before = NC72)
+
+# Remove Probe Names
+
+GSE54913.FINAL=GSE54913.HGNC[,-c(1)]
+
+#/ BACKGROUND CORRECTION
+
+GSE54913.FINAL.BC= backgroundCorrect(GSE54913.FINAL[,c(2:31)], method = "normexp")
+
+# Merge again with Gene symbols
+
+GSE54913.GS= cbind(GSE54913.FINAL.BC, GSE54913.FINAL[,1])
+GSE54913.GS <- GSE54913.GS %>% relocate(V31, .before = NC72)
+GSE54913.GS.df=as.data.frame(GSE54913.GS)
+GSE54913.GS.df <- GSE54913.GS.df %>% relocate(V31, .before = NC72)
+GSE54913.GS.df= rename(GSE54913.GS.df, c('V31'='Suggested.Symbol'))
+
+dim(GSE54913.GS.df)# 17038 31
+View(GSE54913.GS.df)
+
+#/ LIMMA AVEREPS
+GSE54913.avereps= as.data.frame(limma::avereps(GSE54913.GS.df, GSE54913.GS.df$Suggested.Symbol))
+
+dim(GSE54913.avereps)# 13023 31
+
+View(GSE54913.avereps)
+
+#/ HAVE UNIQUE GENE SYMBOLS AS ROW IDS
+
+GSE54913.avereps.df=column_to_rownames(GSE54913.avereps, "Suggested.Symbol")
+colnames(GSE54913.avereps.df)= phData$Sample_ID
+colnames(GSE54913.avereps.df)
+View(GSE54913.avereps.df)
+
+dim(GSE54913.avereps.df)# 13023 30
+
+#/ EXPORT DATA
+
+class(GSE54913.avereps.df)
+
+saveRDS(GSE54913.avereps.df, file="")
+
+############################################## Kumarasinghe et. al. #####################################################
+
+# Only samples before medication were considered
+
+#/ LOADING LIBRARIES
+library(simpleaffy)
+library(magrittr)
+library(org.Hs.eg.db)
+
+#/ SETTING THE WORKING DIRECTORY
+
+setwd("D:/Biotechnology/MSc/Dissertation/Datasets/KumaraSinghe")
+
+#/ READING DATA
+
+Kum.raw=lumiR("Kumarasinghe_non_normalized_unmedicated_modified.txt", sep = "\t", 
+               na.rm = TRUE, convertNuID = TRUE, lib.mapping = 'lumiHumanIDMapping', dec = '.', parseColumnName = TRUE, checkDupId = TRUE,QC = TRUE, 
+               columnNameGrepPattern = list(exprs='AVG_SIGNAL', se.exprs='NA', detection='Detection',
+                                            beadNum='NA'))
+
+dim(Kum.raw) # 48802 21
+
+Kum.exp.probes=rowSums(Kum.raw@assayData$detection >0.95)>=3
+
+View(Kum.exp.probes) 
+
+# Add these filtered probes to lumiBatchobject
+
+Kum.raw=Kum.raw[Kum.exp.probes,]
+dim(Kum.raw) # 17988 21
+
+#/ FETCHING SAMPLE ID, PHENODATA
+Kum.raw@phenoData@data$sampleID
+
+# Read series matrix, phenodata
+
+Kum.pheno=read.delim("Kumarasinghe-series matrix_modified.txt", colClasses="character")
+
+# Add phenotypic info (source and Gender) to the pDATA 
+
+phenoData(Kum.raw) <- AnnotatedDataFrame(Kum.pheno)
+
+# Change the sample ID from phenodata
+
+colnames(Kum.raw)=Kum.raw@phenoData@data$ID
+dim(exprs(Kum.raw)) #17988
+
+# Boxplot for raw data
+
+boxplot(Kum.raw, names=colnames(Kum.raw), main = "Kum_2013 raw data",
+        las=2, ylab="Log2 intensities", col="white", cex.lab=0.75, cex.axis=0.75,cex.main=1)
+
+# Quantile normalization
+
+norm_Kum2013=lumiN(Kum_2013, method = "quantile") 
+
+# Boxplot for rawdata
+
+# boxplot(norm_Kum2013, names=colnames(norm_Kum2013), main = "Kum_2013 normalised data",
+#        las=2, ylab="Log2 intensities", col="white", cex.lab=0.75, cex.axis=0.75,cex.main=1)
+
+# Check for negative values and assign 0 
+
+#/ PERFORMING BACKGROUND CORRECTION
+
+Kum.bcor<- lumiB(Kum.raw)
+dim(Kum.bcor)#17988
+
+# Extracting background corrected matrix
+
+Kum.bcor.matrix= exprs(Kum.bcor)
+dim(Kum.bcor.matrix) 
+
+# Check for negative values and replace them with zero
+
+abc=apply(Kum.bcor.matrix, 1, function(row) any(row<0))
+length(which(abc)) # 8245 rows with negative values
+
+Kum.bcor.matrix[Kum.bcor.matrix<0]=0
+
+Kum.bcor.df= as.data.frame(Kum.bcor.matrix)
+
+dim(Kum.bcor.df) # 17988
+
+#/ GENE ANNOTATION
+
+Kum.bcor.df= rownames_to_column(Kum.bcor.df, var = "rowname")
+
+GENE.SYMBOLS<- nuID2targetID(Kum.bcor.df$rowname, lib.mapping = "lumiHumanIDMapping")
+
+GENE.SYMBOLS= as.data.frame(GENE.SYMBOLS)
+
+GENE.SYMBOLS.sub = GENE.SYMBOLS$GENE.SYMBOLS
+
+#/ CHECKING HGNC SYMBOLS
+
+GENE.SYMBOLS[,2:4]<-checkGeneSymbols(GENE.SYMBOLS.sub, species = "human", unmapped.as.na = TRUE)
+
+View(GENE.SYMBOLS)
+
+GENE.SYMBOL.ASSIGNED=na.omit(GENE.SYMBOLS)
+
+table(is.na(GENE.SYMBOL.ASSIGNED$GENE.SYMBOLS))
+
+dim(GENE.SYMBOL.ASSIGNED) #13115
+
+# Remove rows with unassigned gene symbols
+
+GENE.SYMBOL.ASSIGNED= rownames_to_column(GENE.SYMBOL.ASSIGNED, "rowname")
+
+GENES.MERGED= merge(GENE.SYMBOL.ASSIGNED, Kum.bcor.df, by="rowname")
+
+dim(GENES.MERGED)#13115
+
+#/ LIMMA AVEREPS
+
+Kum.avreps=as.data.frame((limma::avereps(GENES.MERGED, GENES.MERGED$Suggested.Symbol)))
+
+Kum.avreps= Kum.avreps[,-c(1:4)]
+View(Kum.avreps)
+dim(Kum.avreps)#10544
+
+Kum.avreps.final= column_to_rownames(Kum.avreps, "Suggested.Symbol")
+dim(Kum.avreps.final)# 10544
+
+is.numeric(Kum.avreps.final)
+Kum.avreps.final[]= lapply(Kum.avreps.final, function(x) as.numeric(as.character(x)))
+
+View(Kum.avreps.final)
+
+saveRDS(Kum.avreps.final, file = "")
+
+
