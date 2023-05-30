@@ -1,0 +1,106 @@
+#/ Loading libraries
+
+library(tidyr)
+library(plyr)
+library(dplyr)
+library(tibble)
+library(sva)
+library(ggfortify)
+
+#/ Setting working directory
+setwd("")
+
+#/ Read Quantile normalized train and test data
+
+Train1.qnorm=readRDS("train1.qnorm.rds")
+test1.qnorm=readRDS("test1.qnorm.rds")
+
+labels.Train1= Train1.qnorm[c(6775:6777),]
+labels.test1= test1.qnorm[c(6775:6777),]
+
+#/ Train 1
+
+# Inverse log 2 conversion
+
+Train1.qnorm.df=Train1.qnorm[-c(6775:6777),]
+Train1.qnorm.mat= as.matrix(Train1.qnorm.df)
+class(Train1.qnorm.mat)="numeric"
+
+Train1.qnorm.mat=2^(Train1.qnorm.mat)
+
+# Batch correction
+
+Train1.qnorm.t= as.data.frame(t(Train1.qnorm))
+batch.train1= as.integer(Train1.qnorm.t$Batch)
+modcombat.train1 = model.matrix(~1, data= Train1.qnorm.t[6775:6777])
+
+Train1.bc = ComBat(dat=Train1.qnorm.mat, batch=batch.train1, mod=modcombat.train1, par.prior=TRUE, prior.plots=FALSE)
+
+# Add back rows for labels
+Train1.bc.ph= rbind(Train1.bc, labels.Train1)
+
+#/ PCA plot
+
+# Raw train data
+abc=prcomp(t(Train1.qnorm.mat), scale.=TRUE)
+autoplot(abc, data=Train1.qnorm.t[6775:6777], colour= "GSE_ID")+ theme_bw()
+
+# Batch corrected train data
+pqr=prcomp(t(Train1.bc), scale.=TRUE)
+autoplot(pqr, data=Train1.qnorm.t[6775:6777], colour= "GSE_ID")+ theme_bw()
+
+# Save batch corrected file
+saveRDS(Train1.bc.ph, "D:/Biotechnology/MSc/Dissertation/Analysis/200 samples/3. Batch Correction/Train/train1.batch-corrected.rds")
+
+#/ Test 1
+
+# Batch correct data with train data as reference
+
+# Bind train and test phdata
+test1.combat.phdata= cbind(labels.Train1, labels.test1)
+View(test1.combat.phdata)# batch corrected train and raw test data
+a=as.data.frame(t(test1.combat.phdata))
+a$ref.batch=8
+a$ref.batch[c(181:200)]=a$Batch[c(181:200)]
+
+# Inverse log 2 conversion
+
+test1.qnorm.df=test1.qnorm[-c(6775:6777),]
+test1.qnorm.mat= as.matrix(test1.qnorm.df)
+class(test1.qnorm.mat)="numeric"
+
+test1.qnorm.mat=2^(test1.qnorm.mat)
+
+# Bind batch corrected train and raw test data
+
+test1.combat.data=cbind(Train1.bc,test1.qnorm.mat)
+
+# Batch correction
+labels.test.t= as.data.frame(t(labels.test1))
+batch.test1=a$ref.batch
+modcombat.test1 = model.matrix(~1, data=a)
+
+
+combat.test1 = ComBat(dat=test1.combat.data, batch=batch.test1, mod=modcombat.test1, 
+                      par.prior=TRUE, prior.plots=FALSE, ref.batch = 8 )
+
+test1.bc = combat.test1[,colnames(test1.qnorm)]# test.qnorm has sample ids
+dim(test1.bc)# Batch corrected test data
+
+# Add back rows for labels
+test1.bc.ph= rbind(test1.bc, labels.test1)
+
+# PCA plot
+
+# Raw test data
+abc=prcomp(t(test1.qnorm.mat), scale.=TRUE)
+autoplot(abc, data= a[c(181:200),], colour= "GSE_ID")+ theme_bw()
+
+# Batch corrected test data
+pqr=prcomp(t(test1.bc), scale.=TRUE)
+autoplot(pqr, data=a[c(181:200),], colour= "GSE_ID")+ theme_bw()
+
+# Save files
+saveRDS(test1.bc.ph, "test1.batch-corrected.rds")
+
+# The process was repeated for the other 9 iterations of the train and the test data.
